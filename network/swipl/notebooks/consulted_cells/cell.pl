@@ -1,4 +1,4 @@
-% 1638398137845421507
+% 1638401848154773011
 mother_child(trude, sally).
 father_child(tom, sally).
 father_child(tom, erica).

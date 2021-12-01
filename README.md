@@ -14,8 +14,9 @@ Run
 to pause or unpause the network respectively.
 
 ## Running this project
+While in development, running `./manage-network up` will totally rebuild the docker image for the `notebook-swipl` container. This is because sometimes using docker-compose and dockerfiles can lead to the container not updating between tests. Note that this can be expensive, but should be removed once the image is in a stable state.
 
-After running `./manage-network up`, a log from the `swipl-notebook` container will be printed to the terminal with a link to the jupyter notebook. This notebook will have a prolog kernel available.
+After running `./manage-network up`, a log from the `notebook-swipl` container will be printed to the terminal with a link to the jupyter notebook. This notebook will have a prolog kernel available.
 
 Notebooks are saved to persistent storage on the host in the `network/swipl/notebooks` directory. 
 

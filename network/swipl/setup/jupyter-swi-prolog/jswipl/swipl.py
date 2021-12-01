@@ -1,4 +1,5 @@
 import logging
+from os import stat
 from pyswip import Prolog
 from pyswip import Functor
 from pyswip.prolog import PrologError
@@ -125,8 +126,9 @@ def run(code):
         # Iroha does this for us though
         # if not find_hash_on_chain(user, md5_hash(path)):
         file_hash = md5_hash(path)
-        logging.info(f"Log file {cell_file_name} hash {file_hash} on blockchain")
-        store_hash_on_chain(user, file_hash)
+        logging.info(f"File {cell_file_name} hash {file_hash} logging on blockchain")
+        status = store_hash_on_chain(user, file_hash)[0]
+        logging.info(f"File {cell_file_name} hash {file_hash} logged with response {status}")
         log_all_blocks(net_1, "blocks.log")
-        output.append(f"File: {cell_file_name}\nTimestamp: {timestamp}\nHash: {file_hash}")
+        output.append(f"File: {cell_file_name}\nTimestamp: {timestamp}\nHash: {file_hash}\nIroha Response: {status}")
     return output, ok
