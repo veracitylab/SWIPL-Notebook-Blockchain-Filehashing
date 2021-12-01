@@ -1,0 +1,13 @@
+LICENSE
+README.md
+setup.py
+jswipl/__init__.py
+jswipl/jupyter.py
+jswipl/swipl.py
+jswipl/test.py
+jswipl.egg-info/PKG-INFO
+jswipl.egg-info/SOURCES.txt
+jswipl.egg-info/dependency_links.txt
+jswipl.egg-info/entry_points.txt
+jswipl.egg-info/requires.txt
+jswipl.egg-info/top_level.txt

@@ -1,0 +1,120 @@
+query_hash: "a0ee2848d6737145e1a07a243cffadbc40b0fbbefcdbefda1a25b3d4b27e64cf"
+block_response {
+  block {
+    block_v1 {
+      payload {
+        transactions {
+          payload {
+            reduced_payload {
+              commands {
+                add_peer {
+                  peer {
+                    address: "172.29.101.121:10001"
+                    peer_key: "bddd58404d1315e0eb27902c5d7c8eb0602c16238f005773df406bc191308929"
+                  }
+                }
+              }
+              commands {
+                add_peer {
+                  peer {
+                    address: "172.29.101.122:10002"
+                    peer_key: "3ad86d45d8b8e89298d49185b3418fc14a5b0ecbf3b26cb0a592c8ba6b8cae8e"
+                  }
+                }
+              }
+              commands {
+                add_peer {
+                  peer {
+                    address: "172.29.101.123:10003"
+                    peer_key: "6870dec85c32ba2d2c042c511b5a4ea4003823fd1ef819231becc7544331d5d3"
+                  }
+                }
+              }
+              commands {
+                add_peer {
+                  peer {
+                    address: "172.29.101.124:10004"
+                    peer_key: "55b77d9e7ecb1cad531555da10c28a475363cbdd0802b7951e85419014143ecc"
+                  }
+                }
+              }
+              commands {
+                create_role {
+                  role_name: "admin"
+                  permissions: can_add_peer
+                  permissions: can_add_signatory
+                  permissions: can_create_account
+                  permissions: can_create_domain
+                  permissions: can_create_asset
+                  permissions: can_create_role
+                  permissions: can_get_all_acc_ast
+                  permissions: can_get_all_acc_ast_txs
+                  permissions: can_get_all_acc_detail
+                  permissions: can_get_all_acc_txs
+                  permissions: can_get_all_accounts
+                  permissions: can_get_all_signatories
+                  permissions: can_get_all_txs
+                  permissions: can_get_blocks
+                  permissions: can_get_roles
+                  permissions: can_read_assets
+                  permissions: can_remove_signatory
+                  permissions: can_set_quorum
+                }
+              }
+              commands {
+                create_domain {
+                  domain_id: "admin"
+                  default_role: "admin"
+                }
+              }
+              commands {
+                create_account {
+                  account_name: "admin"
+                  domain_id: "admin"
+                  public_key: "313a07e6384776ed95447710d15e59148473ccfc052a681317a72a69f2a49910"
+                }
+              }
+              quorum: 1
+            }
+          }
+        }
+        tx_number: 1
+        height: 1
+        prev_block_hash: "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  }
+}
+
+
+query_hash: "65b988ae9af329257bb182380e8af0f2eea1731b1771d31ea343b56008e865e4"
+block_response {
+  block {
+    block_v1 {
+      payload {
+        height: 2
+        prev_block_hash: "edb8b76962c814ad16a2e285a7238b496d883d8bdd5c91c7fd010808437a43ce"
+        created_time: 1638398140589
+        rejected_transactions_hashes: "db72b0063327e7dfd3d3e3e4a7b4e5b5091c32c51085f2e0f32c21ea744504de"
+      }
+      signatures {
+        public_key: "bddd58404d1315e0eb27902c5d7c8eb0602c16238f005773df406bc191308929"
+        signature: "5c8b133379a0ea6979a253ea68ef6dc295027022d81ce082ed4c680b51dc58b2b95386b268be9610461a5e592e45183ee9bbd4f567178572f816af1005f8e906"
+      }
+      signatures {
+        public_key: "6870dec85c32ba2d2c042c511b5a4ea4003823fd1ef819231becc7544331d5d3"
+        signature: "73677d0c1806b4cd08118e874ca4872971d771a10310c9d72499b7a0b9b5ed82c7628c1fe18c913fb0dbd103226e655c08c89d6e4503822206c296a779e99f0d"
+      }
+      signatures {
+        public_key: "55b77d9e7ecb1cad531555da10c28a475363cbdd0802b7951e85419014143ecc"
+        signature: "4cdedfcc43b6be992e7e56e64c977c864f5b68520d36aa4bfea75b3d3f26a6cc69ee282f48c048fb1b627f0e460926d7fe666775859b62099d1872b43f501d08"
+      }
+      signatures {
+        public_key: "3ad86d45d8b8e89298d49185b3418fc14a5b0ecbf3b26cb0a592c8ba6b8cae8e"
+        signature: "16e05a8a34b25ef50808a9a3b0c1f48125b493531da99b1f7d334a20c9c811889284f0b8389d2178ea2477bda994a60dbe4ed4a422eaf0c55809c54f38cafb0f"
+      }
+    }
+  }
+}
+
+
