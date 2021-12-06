@@ -3,9 +3,11 @@ from time import sleep
 from iroha import primitive_pb2
 from IrohaUtils import *
 import pickle
+import os
 
-logging.basicConfig(level=logging.INFO)
-iroha_setup = False
+BLOCKCHAIN_LOGGING = int(os.getenv("BLOCKCHAIN_LOGGING", "1"))
+LOGGING_LEVEL = int(os.getenv("LOGGING_LEVEL", "20")) #INFO level is 20
+logging.basicConfig(level=LOGGING_LEVEL)
 DOMAIN_NAME = "document"
 user = new_user("swipluser", DOMAIN_NAME)
 with open("/notebooks/iroha_connection/user_data.pkl", "wb+") as user_data:
@@ -33,15 +35,23 @@ def setup_iroha():
     logging.debug(status)
     return status[0] == "COMMITTED"
 
-while not iroha_setup:
-    try:
-        logging.info("Iroha connection setup attempt")
-        iroha_setup = setup_iroha()
-        if not iroha_setup:
-            logging.info("Setup failed! Reattempting")
-    except Exception:
-        logging.info("Network unreachable! Reattempting")
-        sleep(1)
-        continue
 
-logging.info("Iroha Setup Complete")
+# Initial sleep to try and avoid "Network Unreachable!"
+logging.info("Starting SWIPL setup")
+if BLOCKCHAIN_LOGGING:
+    logging.info("Starting Iroha setup")
+    sleep(10)
+    iroha_setup = False
+    while not iroha_setup:
+        try:
+            logging.info("Iroha connection setup attempt")
+            iroha_setup = setup_iroha()
+            if not iroha_setup:
+                logging.info("Setup failed! Reattempting")
+        except Exception:
+            logging.info("Network unreachable! Reattempting")
+            sleep(5)
+            continue
+    logging.info("Iroha Setup Complete")
+
+logging.info("SWIPL Setup Complete")
