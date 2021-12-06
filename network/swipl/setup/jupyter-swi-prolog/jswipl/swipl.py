@@ -1,5 +1,5 @@
 import logging
-from os import stat
+import os
 from pyswip import Prolog
 from pyswip import Functor
 from pyswip.prolog import PrologError
@@ -10,8 +10,11 @@ from pathlib import Path
 import re
 
 
-logging.basicConfig(level=logging.INFO)
-TIMESTAMPING = True
+BLOCKCHAIN_LOGGING = int(os.getenv("BLOCKCHAIN_LOGGING", "1"))
+TIMESTAMPING = int(os.getenv("FILE_TIMESTAMPING", "1"))
+LOGGING_LEVEL = int(os.getenv("LOGGING_LEVEL", "20")) #INFO level is 20
+logging.basicConfig(level=LOGGING_LEVEL)
+logging.info(f"\n{BLOCKCHAIN_LOGGING=}\n{TIMESTAMPING=}\n{LOGGING_LEVEL=}")
 DEFAULT_LIMIT = 10
 user=None
 with open("/notebooks/iroha_connection/user_data.pkl", "rb") as user_data:
@@ -50,11 +53,39 @@ def format_result(result):
     return output
 
 def run(code):
+    global BLOCKCHAIN_LOGGING
+    global TIMESTAMPING
+    global LOGGING_LEVEL
 
-    prolog = Prolog()
-
+    logging.debug(f"\n{code=}")
     output = []
     ok = True
+
+    first_line = code.split("\n")[0].strip()
+    logging.debug(first_line)
+    if first_line==r"%ENV":
+        for line in code.split("\n"):
+            line = line.strip().upper()
+            # For reference later
+            line_end = line[line.find("=")+1:]
+            logging.debug(line)
+            try:
+                if line.startswith("BLOCKCHAIN_LOGGING="):
+                    BLOCKCHAIN_LOGGING=int(line_end)
+                    output.append(f"SET ENV {BLOCKCHAIN_LOGGING=}")
+                if line.startswith("TIMESTAMPING="):
+                    TIMESTAMPING=int(line_end)
+                    output.append(f"SET ENV {TIMESTAMPING=}")
+                if line.startswith("LOGGING_LEVEL="):
+                    LOGGING_LEVEL=int(line_end)
+                    output.append(f"SET ENV {LOGGING_LEVEL=}")
+                    logging.getLogger().setLevel(LOGGING_LEVEL)
+                logging.debug(output)
+            except ValueError:
+                return ["ERROR: Environment variable must be set to an integer", f"{line_end} is not an integer"], False
+        return output, True
+    
+    prolog = Prolog()
     tmp = ""
     clauses = []
     isQuery = False
@@ -125,10 +156,11 @@ def run(code):
         # If vital to never put hash on twice, check first
         # Iroha does this for us though
         # if not find_hash_on_chain(user, md5_hash(path)):
-        file_hash = md5_hash(path)
-        logging.info(f"File {cell_file_name} hash {file_hash} logging on blockchain")
-        status = store_hash_on_chain(user, file_hash)[0]
-        logging.info(f"File {cell_file_name} hash {file_hash} logged with response {status}")
-        log_all_blocks(net_1, "blocks.log")
-        output.append(f"File: {cell_file_name}\nTimestamp: {timestamp}\nHash: {file_hash}\nIroha Response: {status}")
+        if BLOCKCHAIN_LOGGING:
+            file_hash = md5_hash(path)
+            logging.info(f"File {cell_file_name} hash {file_hash} logging on blockchain")
+            status = store_hash_on_chain(user, file_hash)[0]
+            logging.info(f"File {cell_file_name} hash {file_hash} logged with response {status}")
+            log_all_blocks(net_1, "blocks.log")
+            output.append(f"File: {cell_file_name}\nTimestamp: {timestamp}\nHash: {file_hash}\nIroha Response: {status}")
     return output, ok
