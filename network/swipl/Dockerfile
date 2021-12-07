@@ -14,4 +14,3 @@ COPY run-notebook /usr/bin/run-notebook
 COPY setup /setup
 WORKDIR /setup
 RUN pip install -r ./requirements.txt
-WORKDIR /

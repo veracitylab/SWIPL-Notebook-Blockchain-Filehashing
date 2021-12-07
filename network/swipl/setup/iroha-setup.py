@@ -8,7 +8,7 @@ import os
 BLOCKCHAIN_LOGGING = int(os.getenv("BLOCKCHAIN_LOGGING", "1"))
 LOGGING_LEVEL = int(os.getenv("LOGGING_LEVEL", "20")) #INFO level is 20
 logging.basicConfig(level=LOGGING_LEVEL)
-DOMAIN_NAME = "document"
+DOMAIN_NAME = "hashing"
 user = new_user("swipluser", DOMAIN_NAME)
 with open("/notebooks/iroha_connection/user_data.pkl", "wb+") as user_data:
     pickle.dump(user, user_data)
@@ -22,6 +22,10 @@ def setup_iroha():
                 primitive_pb2.can_create_asset,
                 primitive_pb2.can_read_assets
             ]),
+        # Create a new role that can do NOTHING
+        iroha_admin.command("CreateRole", role_name="null_role", permissions=[
+            
+        ]),
         # Create a new domain that has document_creator as role
         iroha_admin.command("CreateDomain", domain_id=DOMAIN_NAME, default_role="document_creator"),
         iroha_admin.command('CreateAccount', account_name=user["name"], domain_id=DOMAIN_NAME,

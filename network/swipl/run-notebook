@@ -1,4 +1,4 @@
 #!/bin/bash
 
-python3 /setup/jupyter-swi-prolog/jswipl/iroha-setup.py
+python3 /setup/iroha-setup.py
 jupyter-lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser /notebooks

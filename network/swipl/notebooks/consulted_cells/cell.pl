@@ -1,8 +1,4 @@
-% 1638401848154773011
-mother_child(trude, sally).
-father_child(tom, sally).
-father_child(tom, erica).
-father_child(mike, tom).
-sibling(X, Y)      :- parent_child(Z, X), parent_child(Z, Y).
-parent_child(X, Y) :- father_child(X, Y).
-parent_child(X, Y) :- mother_child(X, Y).
+% 1638914118300588085
+a=0
+b=1
+print(a+b)
