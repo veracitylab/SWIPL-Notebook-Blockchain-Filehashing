@@ -32,12 +32,21 @@ IROHA_PORT_3 = os.getenv('IROHA_PORT_3', '50053')
 IROHA_HOST_ADDR_4 = os.getenv('IROHA_HOST_ADDR_3', '172.29.101.124')
 IROHA_PORT_4 = os.getenv('IROHA_PORT_4', '50054')
 
-
 ADMIN_ACCOUNT_ID = os.getenv('ADMIN_ACCOUNT_ID', 'admin@admin')
 ADMIN_PRIVATE_KEY = os.getenv(
     'ADMIN_PRIVATE_KEY', 'f101537e319568c765b2cc89698325604991dca57b9716b58016b253506cab70')
-
 iroha_admin = Iroha(ADMIN_ACCOUNT_ID)
+
+admin = {
+    "id": "admin@admin",
+    "name": "admin",
+    "domain": "admin",
+    "public_key": IrohaCrypto.derive_public_key(ADMIN_PRIVATE_KEY),
+    "private_key": ADMIN_PRIVATE_KEY,
+    "iroha": iroha_admin
+}
+
+
 net_1 = IrohaGrpc('{}:{}'.format(IROHA_HOST_ADDR_1, IROHA_PORT_1), timeout=10)
 net_2 = IrohaGrpc('{}:{}'.format(IROHA_HOST_ADDR_2, IROHA_PORT_2), timeout=10)
 net_3 = IrohaGrpc('{}:{}'.format(IROHA_HOST_ADDR_3, IROHA_PORT_3), timeout=10)
@@ -126,8 +135,8 @@ def get_block(block_number, connection):
         Exception if block height is invalid, or if connection is invalid
     """
 
-    query = iroha_admin.query("GetBlock", height=block_number)
-    query = IrohaCrypto.sign_query(query, ADMIN_PRIVATE_KEY)
+    query = admin["iroha"].query("GetBlock", height=block_number)
+    query = IrohaCrypto.sign_query(query, admin["private_key"])
     block = connection.send_query(query)
 
     return block
@@ -205,36 +214,6 @@ def new_user(user_name, domain_name):
         "iroha": Iroha(id)
     }
 
-def admin_create_domain(domain_name):
-    """
-    Create a new domain, according to admins specifications
-    This function exists so a user cannot make a domain with a specific role, as now admin gets to control this
-    This function requires existence of a null_role. Passing in a role would defeat the purpose of this function
-
-
-    Args:
-        domain_name (String): The domain name to create
-
-    Return:
-        Boolean: True if domain exists, False otherwise
-    """
-
-    commands = [
-        iroha_admin.command("CreateDomain", domain_id=domain_name, default_role="null_role")
-    ]
-    tx = IrohaCrypto.sign_transaction(
-        iroha_admin.transaction(commands), ADMIN_PRIVATE_KEY)
-    logging.debug(tx)
-    status = send_transaction(tx, net_1)
-    logging.debug(status)
-    if status[0]=="COMMITTED":
-        logging.debug(f"New domain \"{domain_name}\" created")
-    else:
-        logging.debug(f"Domain \"{domain_name}\" already exists")
-
-    # Domain will always exist, look into False case later
-    return True
-
 class IrohaHashCustodian():
     """
     A class to look after hashes on the block chain
@@ -251,17 +230,17 @@ class IrohaHashCustodian():
     @trace
     def __init__(self):
         # Ensure default role exists
-        q = iroha_admin.query("GetRoles")
-        q = IrohaCrypto.sign_query(q, ADMIN_PRIVATE_KEY)
+        q = admin["iroha"].query("GetRoles")
+        q = IrohaCrypto.sign_query(q, admin["private_key"])
         response = net_1.send_query(q)
         if self.default_role_name not in response.roles_response.roles:
             commands = [
-                iroha_admin.command("CreateRole", role_name="null_role", permissions=[
+                admin["iroha"].command("CreateRole", role_name="null_role", permissions=[
             
                 ])
             ]
             tx = IrohaCrypto.sign_transaction(
-                iroha_admin.transaction(commands), ADMIN_PRIVATE_KEY)
+                admin["iroha"].transaction(commands), admin["private_key"])
             logging.debug(tx)
             status = send_transaction(tx, net_1)
             logging.debug(status)
@@ -315,10 +294,10 @@ class IrohaHashCustodian():
         """
 
         commands = [
-            iroha_admin.command("CreateDomain", domain_id=domain_name, default_role="null_role")
+            admin["iroha"].command("CreateDomain", domain_id=domain_name, default_role="null_role")
         ]
         tx = IrohaCrypto.sign_transaction(
-            iroha_admin.transaction(commands), ADMIN_PRIVATE_KEY)
+            admin["iroha"].transaction(commands), admin["private_key"])
         logging.debug(tx)
         status = send_transaction(tx, net_1)
         logging.debug(status)
