@@ -3,31 +3,16 @@
 ## Prerequisites
 Ensure that your machine runs docker and docker-compose.
 
-## Network Setup
-From the multinode-network directory, run
-
-`./manage-network up`
-
-to start the iroha containers. Run
-
-`./manage-network down`
-
-to destroy those containers when finished.
-
-Run
-
-`./manage-network (pause|unpause)`
-
-to pause or unpause the network respectively.
-
 ## Running this project
-While in development, running `./manage-network up` will totally rebuild the docker image for the `notebook-swipl` container. This is because sometimes using docker-compose and dockerfiles can lead to the container not updating between tests. Note that this can be expensive, but should be removed once the image is in a stable state.
+While in development, running `./manage-network up` will totally rebuild the docker image for the `swipl-notebook` container. This is because sometimes using docker-compose and dockerfiles can lead to the container not updating between tests. Note that this can be expensive, but should be removed once the image is in a stable state.
 
-After running `./manage-network up`, a log from the `notebook-swipl` container will be printed to the terminal with a link to the jupyter notebook. This notebook will have a prolog kernel available.
+After running `./manage-network up`, a log from the `swiplnotebook` container will be printed to the terminal with a link to the jupyter notebook. This notebook will have a prolog kernel available.
 
 Notebooks are saved to persistent storage on the host in the `network/swipl/notebooks` directory. 
 
 Using magic file notation (putting `%file: filename.pl` at the top of a prolog cell), that file will be hashed and stored on the Iroha blockchain running on the iroha containers. This provides a record of what files were activated and when, which could be used to detect inconsistencies in a prolog environment.
+
+Using more magic notation (putting `%python` at the top of a cell) you can run python code in the SWIPL kernel. This is currently VERY poorly implemented and is intended to just be for scripting e.g. creating images from prolog consultation files.
 
 A log of the blockchain is stored after each new file is stored on the chain. The logs are stored in `network/swipl/notebooks/logs` due to a quirk in how jupyter notebook kernels run.
 
