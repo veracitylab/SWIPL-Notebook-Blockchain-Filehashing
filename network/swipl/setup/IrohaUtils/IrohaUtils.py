@@ -375,7 +375,7 @@ class IrohaHashCustodian():
         return response.asset_response.asset.asset_id==h+f"#{user['domain']}"
 
     @trace
-    def get_domain_assets(self, user, domain_name=None, connection=net_1):
+    def get_domain_hashes(self, user, domain_name=None, connection=net_1):
         """
         Find all occurrences of domain being added to over the entire blockchain
         Return this information as a list, from earliest to latest
