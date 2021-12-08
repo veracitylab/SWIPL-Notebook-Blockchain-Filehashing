@@ -1,4 +1,3 @@
-% 1638832766619645905
+% 1638932391820270187
 man(socrates).
-man(hayden).
 mortal(X) :- man(X).

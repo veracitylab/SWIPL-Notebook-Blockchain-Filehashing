@@ -14,11 +14,11 @@ from io import StringIO
 import contextlib
 
 
-BLOCKCHAIN_LOGGING = int(os.getenv("BLOCKCHAIN_LOGGING", "1"))
-TIMESTAMPING = int(os.getenv("FILE_TIMESTAMPING", "1"))
-LOGGING_LEVEL = int(os.getenv("LOGGING_LEVEL", "20")) #INFO level is 20
+BLOCKCHAIN = 0
+TIMESTAMPING = 1
+LOGGING_LEVEL = 20 #INFO level is 20
 logging.basicConfig(level=LOGGING_LEVEL)
-logging.info(f"\n{BLOCKCHAIN_LOGGING=}\n{TIMESTAMPING=}\n{LOGGING_LEVEL=}")
+logging.info(f"\n{BLOCKCHAIN=}\n{TIMESTAMPING=}\n{LOGGING_LEVEL=}")
 DEFAULT_LIMIT = 10
 user=None
 with open("/notebooks/iroha_connection/user_data.pkl", "rb") as user_data:
@@ -68,7 +68,7 @@ def stdoutIO(stdout=None):
     sys.stdout = old
 
 def run(code):
-    global BLOCKCHAIN_LOGGING
+    global BLOCKCHAIN
     global TIMESTAMPING
     global LOGGING_LEVEL
     global magic_python_local_vars
@@ -89,9 +89,9 @@ def run(code):
             line_end = line[line.find("=")+1:]
             logging.debug(line)
             try:
-                if line.startswith("BLOCKCHAIN_LOGGING="):
-                    BLOCKCHAIN_LOGGING=int(line_end)
-                    output.append(f"SET ENV {BLOCKCHAIN_LOGGING=}")
+                if line.startswith("BLOCKCHAIN="):
+                    BLOCKCHAIN=int(line_end)
+                    output.append(f"SET ENV {BLOCKCHAIN=}")
                 if line.startswith("TIMESTAMPING="):
                     TIMESTAMPING=int(line_end)
                     output.append(f"SET ENV {TIMESTAMPING=}")
@@ -203,8 +203,8 @@ def run(code):
             prolog.consult(f.name)
         # If vital to never put hash on twice, check first
         # Iroha does this for us though
-        if not custodian.find_hash_on_chain(user, custodian.get_file_hash(path)):
-            if BLOCKCHAIN_LOGGING:
+        if BLOCKCHAIN:
+            if not custodian.find_hash_on_chain(user, custodian.get_file_hash(path)):
                 # Get the file hash
                 file_hash = custodian.get_file_hash(path)
                 # Get the domain name in the form of {user_name}-{file_name}
