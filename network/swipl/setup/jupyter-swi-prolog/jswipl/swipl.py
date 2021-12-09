@@ -21,11 +21,11 @@ logging.basicConfig(level=LOGGING_LEVEL)
 logging.info(f"\n{BLOCKCHAIN=}\n{TIMESTAMPING=}\n{LOGGING_LEVEL=}")
 DEFAULT_LIMIT = 10
 user=None
+custodian = IrohaHashCustodian.Custodian(blockstore=True)
 with open("/notebooks/iroha_connection/user_data.pkl", "rb") as user_data:
     user = pickle.load(user_data)
 logging.debug(user)
 
-custodian = IrohaHashCustodian()
 magic_python_local_vars = {}
 
 def format_value(value):
@@ -107,18 +107,17 @@ def run(code):
     # If first line specifies magic python do that instead
     if first_line==r"%PYTHON":
         # Execute each line in turn, ignoring the first (%PYTHON)
-        for line in code.split("\n")[1:]:
-            with stdoutIO() as s:
-            # Handle errors being thrown out the wazoo
-                try:
-                    # Execute this line with the local dictionary context
-                    exec(line, None, magic_python_local_vars)
-                except Exception as e:
-                    output.append(f"ERROR: line '{line}' gave error '{e}'")
-            line_out = s.getvalue().strip()
-            logging.debug(f"{line}: {line_out}")
-            if len(line_out)>0:
-                output.append(line_out)
+        code = "\n".join(code.split("\n")[1:])
+        with stdoutIO() as s:
+        # Handle errors being thrown out the wazoo
+            try:
+                # Execute this line with the local dictionary context
+                exec(code, None, magic_python_local_vars)
+            except Exception as e:
+                output.append(f"ERROR: '{e}'")
+        line_out = s.getvalue().strip()
+        if len(line_out)>0:
+            output.append(line_out)
         return output, True
 
     # Do prolog instead
@@ -208,12 +207,12 @@ def run(code):
                 # Get the file hash
                 file_hash = custodian.get_file_hash(path)
                 # Get the domain name in the form of {user_name}-{file_name}
-                domain_name = user["name"]+"-"+cell_file_name[:cell_file_name.find(".")]
+                domain_name = custodian._parse_domain_name(user["name"]+"-"+cell_file_name[:cell_file_name.find(".")])
                 logging.info(f"File {cell_file_name} hash {file_hash} logging on blockchain")
                 # Store the hash on chain
                 status = custodian.store_hash_on_chain(user, file_hash, domain_name=domain_name)[0]
                 logging.info(f"File {cell_file_name} hash {file_hash} logged to domain {domain_name} with response {status}")
                 # Log all blocks for debugging
-                log_all_blocks(net_1, "blocks.log")
+                log_all_blocks("blocks.log")
                 output.append(f"File: {cell_file_name}\nTimestamp: {timestamp}\nHash: {file_hash}\nDomain: {domain_name}\nIroha Response: {status}")
     return output, ok

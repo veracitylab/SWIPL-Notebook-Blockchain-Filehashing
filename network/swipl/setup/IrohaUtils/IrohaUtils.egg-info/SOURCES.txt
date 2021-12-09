@@ -1,5 +1,0 @@
-setup.py
-IrohaUtils.egg-info/PKG-INFO
-IrohaUtils.egg-info/SOURCES.txt
-IrohaUtils.egg-info/dependency_links.txt
-IrohaUtils.egg-info/top_level.txt
