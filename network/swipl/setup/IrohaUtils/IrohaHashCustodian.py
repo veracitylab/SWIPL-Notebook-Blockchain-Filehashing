@@ -1,5 +1,4 @@
 from IrohaUtils import *
-from iroha import primitive_pb2
 import logging
 import hashlib
 import threading
@@ -10,35 +9,52 @@ class BlockStorehouse():
     This will allow for a speed up as we will not need to query the same low height blocks over and over
     """
 
-    """
-    The current height to which this storehouse has scanned
-    """
-    current_height = 1
-
-    """
-    This storehouse's world state
-    The dictionary is indexed by domain>blocks>hashes
-    """
-    world_state = {}
-
     @trace
-    def __init__(self, conn=net_1):
+    def __init__(self, hashing_domain_suffix, thread_mode, conn=net_1):
         """
         Set the variables for the blockstore and create a new connection that will not time out
 
         Args:
+            hashing_domain_suffix (String): The suffix to domain names marking a domain holding hashes
+            threading (boolean): Set whether threading should be used or not
+                If threading is used (True) then a new thread is spawned that subscribes to block updates. Note this can slow down execution!
+                If threading is not used (False) then each request to the chain causes the blockstore to update all at once
+                    This removes threads but makes a request after a long delay quite slow
             conn (IrohaGrpc, optional): The connection to copy to the block store. Defaults to net_1.
         """
+
+        self.hashing_domain_suffix = hashing_domain_suffix
         self._current_height_lock = threading.Lock()
         self.current_height = 1
         self._world_state_lock = threading.Lock()
         self.world_state = {}
+        self.thread_mode = thread_mode
+        self._listen_thread=None
+        # Create a new connection with no timeout
         self.conn = IrohaGrpc(conn._address)
         # Collect all hashes from genesis until now
-        self.init_collect_hashes()
-        # Start a thread to continue to listen for new blocks
-        self.listen_thread = threading.Thread(target=self.listen_for_blocks)
-        self.listen_thread.start()
+        self.collect_hashes()
+        if self.thread_mode:
+            # Start a thread to continue to listen for new blocks
+            self._listen_thread = threading.Thread(target=self.listen_for_blocks)
+            # This thread really shouldn't keep anything running if main thread dies
+            self._listen_thread.daemon = True
+            self._listen_thread.start()
+        # If we are not threading, do not start a thread 
+
+    @trace
+    def destroy(self):
+        """
+        Destroy this storehouse, safely cleaning up the threads (if any) and ensuring memory is released
+
+        Returns:
+            None: Returns None so we know this blockstore is destroyed
+        """
+        if self._listen_thread is not None or self._listen_thread.is_alive():
+            self.threading = False
+
+        self.world_state = None
+        return None
 
     @trace
     def parse_block(self, block):
@@ -57,15 +73,15 @@ class BlockStorehouse():
             # For each command in the transaction
             for command in tx.payload.reduced_payload.commands:
                 # If the command is to create asset in the target domain, store this
-                if command.create_asset.domain_id.endswith(Custodian.HASHING_DOMAIN_SUFFIX):
+                if command.create_asset.domain_id.endswith(self.hashing_domain_suffix):
                     # We have a new hash
                     with self._world_state_lock:
                         if command.create_asset.domain_id not in self.world_state.keys():
                             # We need to make a new entry to our world_state domains
                             self.world_state[command.create_asset.domain_id] = []
                         current_hash = {
-                            "height": self.current_height,
                             "hash": command.create_asset.asset_name,
+                            "height": self.current_height,
                             "domain": command.create_asset.domain_id,
                             "creator_id": current_creator_id,
                             "time": current_created_time
@@ -75,11 +91,13 @@ class BlockStorehouse():
             self.current_height+=1
 
     @trace
-    def init_collect_hashes(self):
+    def collect_hashes(self):
         """
-        Collect all the blocks from genesis to now in one swoop
-        This method blocks execution as the storehouse should be up to date before being queried
-        Once this method has completed, then the asynchronous polling can occur
+        Collect all the blocks from current_height to most recent in one swoop
+        If threading, note that this method blocks execution as the storehouse, and should only be run at start up
+            Once this method has completed, then the asynchronous polling can occur
+
+        If not threading, this method is called at each request to allow the storehouse to catch up
         """
 
         current_block = None
@@ -98,6 +116,10 @@ class BlockStorehouse():
         IrohaCrypto.sign_query(query, admin["private_key"])
         for block in self.conn.send_blocks_stream_query(query):
             # logging.debug(block)
+            # Check if we are still threading
+            if not threading:
+                # End the thread by leaving loop
+                break
             self.parse_block(block)
 
     def get_domain_hashes(self, domain_name):
@@ -111,11 +133,17 @@ class BlockStorehouse():
             List or None: Either the list of hashes for the required domain or None (if no such domain exists in the world state)
         """
 
+        # At request, if we are not threading, catch up
+        if self._listen_thread is None:
+            self.collect_hashes()
+
         # Check if domain name is in the world state, or if there are no hashes in the domain
         if domain_name not in self.world_state.keys() or len(self.world_state[domain_name])==0:
             return None
 
-        return self.world_state[domain_name]
+        with self._world_state_lock:
+            result = self.world_state[domain_name]
+        return result
 
 class Custodian():
     """
@@ -123,24 +151,35 @@ class Custodian():
     Offering the ability to get hashes of a file, store hashes on the chain, and find hashes on the chain
     """
 
-    """
-    The hash function this custodian will use
-    Iroha demands 32 character asset names, so we are restricted greatly in output size
-    """
-    HASH_FUNCTION = hashlib.md5
-
-    """
-    The suffix for domains that store file hashes
-    """
-    HASHING_DOMAIN_SUFFIX = "-hash"
-
     @trace
-    def __init__(self, default_domain_name="hashing", hashing_role_name="hash_creator", null_role_name="null_role", blockstore=False):
+    def __init__(self, hashing_domain_suffix="-hash", 
+            default_domain_name="hashing", 
+            hashing_role_name="hash_creator", 
+            null_role_name="null_role", 
+            blockstore_threading=False,
+            hash_function = hashlib.md5):
+        """
+        Create a new hash custodian, managing storage of hashes on the blockchain
+        Use store_hash_on_chain to store a hash in a domain
+        Use find_hash_on_chain to check if a hash exists in a domain
+        Use get_domain_hashes to get ALL hashes in a domain
+
+        Args:
+            hashing_domain_suffix (str, optional): The suffix for domains that store file hashes. Defaults to "-hash".
+            default_domain_name (str, optional): The default domain name if no domain is given to store/find a hash. Defaults to "hashing".
+            hashing_role_name (str, optional): The default role name for hashing. Defaults to "hash_creator".
+            null_role_name (str, optional): The default role name for new domains. Will have no permissions for security. Defaults to "null_role".
+            blockstore_threading (bool, optional): Determines if the blockstore (cache for queries) will thread. Defaults to False.
+            hash_function (hashlib.hash, optional): The hash function to use in hashing. Please note Iroha assets are capped at 32 characters, so currently only 32 character hash outputs are supported.
+                Defaults to hashlib.md5
+        """
+        
+        self.hashing_domain_suffix = hashing_domain_suffix
         self.default_domain_name = default_domain_name
         self.hashing_role_name = hashing_role_name
         self.null_role_name = null_role_name
-        self.block_storehouse = None
-        logging.debug(f"{self.default_domain_name=}, {self.hashing_role_name=}, {self.null_role_name=}")
+        self.block_storehouse = BlockStorehouse(self.hashing_domain_suffix, thread_mode=blockstore_threading)
+        self.hash_function = hash_function
         commands = [
             # Create a new role that can only create assets (i.e. create hashes) and read assets (to see if they exist)
             iroha_admin.command("CreateRole", role_name=self.hashing_role_name, permissions=[
@@ -159,9 +198,22 @@ class Custodian():
         logging.debug(tx)
         status = send_transaction(tx, net_1)
         logging.debug(status)
-        if blockstore:
-            # Create BlockStorehouse to check blocks as they come in
-            self.block_storehouse = BlockStorehouse()
+            
+
+    @trace
+    def destroy(self):
+        """
+        Destroy this custodian. Remove the blockstore (if any) and return None
+        This is intended to be used if a new custodian is to be created and you want to clean up
+        Especially if threads are involved with the blockstore
+
+        Returns:
+            None
+        """
+
+        self.block_storehouse = self.block_storehouse.destroy()
+
+        return None
 
     @trace
     def new_hashing_user(self, user_name):
@@ -201,7 +253,7 @@ class Custodian():
         """
         with open(filename, "rb") as f:
             b = f.read()
-            h = self.HASH_FUNCTION(b)
+            h = self.hash_function(b)
         logging.debug(h.hexdigest())
         return h.hexdigest()
 
@@ -217,7 +269,7 @@ class Custodian():
             String: The hex digest of the object
         """
         obj = str(obj).encode()
-        return self.HASH_FUNCTION(obj).hexdigest()
+        return self.hash_function(obj).hexdigest()
 
     def _parse_domain_name(self, domain_name):
         """
@@ -235,8 +287,8 @@ class Custodian():
         if domain_name is None:
             domain_name = self.default_domain_name
 
-        if not domain_name.endswith(Custodian.HASHING_DOMAIN_SUFFIX):
-            domain_name+=Custodian.HASHING_DOMAIN_SUFFIX
+        if not domain_name.endswith(self.hashing_domain_suffix):
+            domain_name+=self.hashing_domain_suffix
 
         return domain_name
 
@@ -337,25 +389,21 @@ class Custodian():
         return response.asset_response.asset.asset_id==f"{h}#{domain_name}"
 
     @trace
-    def get_domain_hashes(self, domain_name=None, connection = net_1):
+    def get_domain_hashes(self, domain_name=None):
         """
-        Find all occurrences of domain being added to over the entire blockchain
-        Return this information as a list, from earliest to latest
-
-        Note this operation can be   S L O W   for large chains
+        Consult the blockstore about the domain in question
 
         Args:
             user (Dictionary): The user dictionary of the user querying this domain
             domain_name (String or None, optional): The domain name to search for the hash in
                 If None then use the users domain instead
                 Defaults to None
-            connection (IrohaGrpc, optional): The connection to send this hash over. Defaults to net_1.
 
         Returns:
             List or None: A list of all occurrences of assets being added to this domain over the entire chain
                 The elements of this list are dictionaries of:
-                    height: The height that asset was added
                     hash: The name of that asset (remembering names are hashes)
+                    height: The height that asset was added
                     domain: The domain of the asset, for completeness
                     creator_id: The creator of that asset
                     time: The time of creation (may be more useful than height in some cases)
@@ -363,34 +411,5 @@ class Custodian():
         """
 
         domain_name = self._parse_domain_name(domain_name)
-        if self.block_storehouse is not None:
-            return self.block_storehouse.get_domain_hashes(domain_name)
-    
-        current_height=1
-        current_block = None
-        asset_list = []
 
-        # Loop over every block in the chain, from the first
-        while (current_block := get_block(current_height, connection)).error_response.error_code == 0:
-            logging.debug(f"Got block at height {current_height}")
-            # For each transaction in the block
-            for tx in current_block.block_response.block.block_v1.payload.transactions:
-                # Get the creator and the time
-                current_creator_id = tx.payload.reduced_payload.creator_account_id
-                current_created_time = tx.payload.reduced_payload.created_time
-                # For each command in the transaction
-                for command in tx.payload.reduced_payload.commands:
-                    # If the command is to create asset in the target domain, store this
-                    if command.create_asset.domain_id == domain_name:
-                        current_asset = {
-                            "height": current_height,
-                            "hash": command.create_asset.asset_name,
-                            "domain": command.create_asset.domain_id,
-                            "creator_id": current_creator_id,
-                            "time": current_created_time
-                        }
-                        logging.debug("Found matching asset")
-                        logging.debug(f"{current_asset=}")
-                        asset_list.append(current_asset)
-            current_height+=1
-        return asset_list
+        return self.block_storehouse.get_domain_hashes(domain_name)

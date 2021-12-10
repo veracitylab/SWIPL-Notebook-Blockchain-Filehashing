@@ -3,7 +3,7 @@ import binascii
 import logging
 from pathlib import Path
 from google.protobuf.symbol_database import Default
-from iroha import IrohaCrypto, Iroha, IrohaGrpc
+from iroha import IrohaCrypto, Iroha, IrohaGrpc, primitive_pb2
 
 class bcolors:
     HEADER = '\033[95m'

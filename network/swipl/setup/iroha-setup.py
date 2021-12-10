@@ -1,6 +1,5 @@
 import logging
 from time import sleep
-from iroha import primitive_pb2
 from IrohaUtils import *
 import pickle
 import os

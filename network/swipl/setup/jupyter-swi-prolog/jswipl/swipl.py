@@ -21,7 +21,7 @@ logging.basicConfig(level=LOGGING_LEVEL)
 logging.info(f"\n{BLOCKCHAIN=}\n{TIMESTAMPING=}\n{LOGGING_LEVEL=}")
 DEFAULT_LIMIT = 10
 user=None
-custodian = IrohaHashCustodian.Custodian(blockstore=True)
+custodian = IrohaHashCustodian.Custodian(blockstore_threading=False)
 with open("/notebooks/iroha_connection/user_data.pkl", "rb") as user_data:
     user = pickle.load(user_data)
 logging.debug(user)
