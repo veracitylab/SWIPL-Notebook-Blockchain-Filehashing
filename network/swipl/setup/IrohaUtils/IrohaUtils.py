@@ -2,10 +2,8 @@ import os
 import binascii
 import logging
 from pathlib import Path
-import re
 from google.protobuf.symbol_database import Default
 from iroha import IrohaCrypto, Iroha, IrohaGrpc, primitive_pb2
-import hashlib
 
 class bcolors:
     HEADER = '\033[95m'
@@ -69,7 +67,7 @@ def trace(func):
 
 
 @trace
-def send_transaction(transaction, connection, verbose=False):
+def send_transaction(transaction, connection=net_1, verbose=False):
     """Send a transaction across a network to a peer and return the final status
     Verbose mode intended mainly for manual transaction sending and testing
     This method is blocking, waiting for a final status for the transaction
@@ -96,7 +94,7 @@ def send_transaction(transaction, connection, verbose=False):
     return last_status
 
 @trace
-def send_batch(transactions, connection, verbose=False):
+def send_batch(transactions, connection=net_1, verbose=False):
     """Send a batch of transactions across a connection, all at once
 
     Args:
@@ -121,7 +119,7 @@ def send_batch(transactions, connection, verbose=False):
     return last_status_list
 
 @trace
-def get_block(block_number, connection):
+def get_block(block_number, connection=net_1):
     """Get the block at height block_number from the node specified by connection 
 
     Args:
@@ -142,7 +140,7 @@ def get_block(block_number, connection):
     return block
 
 @trace
-def get_all_blocks(connection):
+def get_all_blocks(connection=net_1):
     """Get all blocks from a connection
 
     Args:
@@ -165,7 +163,7 @@ def get_all_blocks(connection):
     return block_json
 
 @trace
-def log_all_blocks(connection, log_name, logs_directory="logs"):
+def log_all_blocks(log_name, logs_directory="logs", connection=net_1):
     """Get all blocks from a node and write them to a log file in JSON format
 
     Args:
@@ -214,219 +212,4 @@ def new_user(user_name, domain_name):
         "iroha": Iroha(id)
     }
 
-class IrohaHashCustodian():
-    """
-    A class to look after hashes on the block chain
-    Offering the ability to get hashes of a file, store hashes on the chain, and find hashes on the chain
-    """
-
-    """
-    The hash function this custodian will use
-    Iroha demands 32 character asset names, so we are restricted greatly in output size
-    """
-    hash_function = hashlib.md5
-    default_role_name = "null_role"
-
-    @trace
-    def __init__(self):
-        # Ensure default role exists
-        q = admin["iroha"].query("GetRoles")
-        q = IrohaCrypto.sign_query(q, admin["private_key"])
-        response = net_1.send_query(q)
-        if self.default_role_name not in response.roles_response.roles:
-            commands = [
-                admin["iroha"].command("CreateRole", role_name="null_role", permissions=[
-            
-                ])
-            ]
-            tx = IrohaCrypto.sign_transaction(
-                admin["iroha"].transaction(commands), admin["private_key"])
-            logging.debug(tx)
-            status = send_transaction(tx, net_1)
-            logging.debug(status)
-
-    @trace
-    def get_file_hash(self, filename):
-        """
-        Generate and return the MD5 hex digest of the contents of a file
-        While it would be nice to use a different, more secure algorithm we are constrained
-        The output of this hash will be the name of an Iroha asset, which can have max length of 32
-
-        Args:
-            filename (String): The name of the file to hash
-
-        Returns:
-            String: The hex digest of the contents of the file described by filename
-        """
-        with open(filename, "rb") as f:
-            b = f.read()
-            h = self.hash_function(b)
-        logging.debug(h.hexdigest())
-        return h.hexdigest()
-
-    @trace
-    def get_hash(self, obj):
-        """
-        Get the hash digest of an object
-
-        Args:
-            obj (Object, hashable): The object to hash
-
-        Returns:
-            String: The hex digest of the object
-        """
-        obj = str(obj).encode()
-        return self.hash_function(obj).hexdigest()
-
-    @trace
-    def _admin_create_domain(self, domain_name):
-        """
-        Create a new domain, according to admins specifications
-        This function exists so a user cannot make a domain with a specific role, as now admin gets to control this
-        This function requires existence of a null_role. Passing in a role would defeat the purpose of this function
-
-
-        Args:
-            domain_name (String): The domain name to create
-
-        Return:
-            Boolean: True if domain exists, False otherwise
-        """
-
-        commands = [
-            admin["iroha"].command("CreateDomain", domain_id=domain_name, default_role="null_role")
-        ]
-        tx = IrohaCrypto.sign_transaction(
-            admin["iroha"].transaction(commands), admin["private_key"])
-        logging.debug(tx)
-        status = send_transaction(tx, net_1)
-        logging.debug(status)
-        if status[0]=="COMMITTED":
-            logging.debug(f"New domain \"{domain_name}\" created")
-        else:
-            logging.debug(f"Domain \"{domain_name}\" already exists")
-
-        # Domain will always exist, look into False case later
-        return True
-
-    @trace
-    def store_hash_on_chain(self, user, h, domain_name=None, connection=net_1):
-        """
-        Take the hex digest of a message and store this on the blockchain as the name of an asset
-
-        Args:
-            user (Dictionary): The user dictionary of the user sending this hash
-            h (String): The hash of a message
-            domain_name (String or None, optional): The domain name to store the hash in
-                If None then use the users domain instead
-                Defaults to None
-            connection (IrohaGrpc, optional): The connection to send this hash over. Defaults to net_1.
-
-        Return:
-            IrohaStatus: The status of the transaction to put this hash to the chain
-        """
-
-        if domain_name is None:
-            domain_name = user["domain"]
-
-        # Try to create the domain, true if domain now exists, false otherwise
-        status = self._admin_create_domain(domain_name)
-        if not status:
-            logging.info("Domain failed to exist!")
-            # Let method continue so rejected status can be passed
-
-        commands = [
-            user["iroha"].command('CreateAsset', asset_name=h,
-                        domain_id=domain_name, precision=0)
-        ]
-        tx = IrohaCrypto.sign_transaction(
-            user["iroha"].transaction(commands), user["private_key"])
-        logging.debug(tx)
-        status = send_transaction(tx, connection)
-        logging.debug(status)
-        return status
-
-    @trace
-    def find_hash_on_chain(self, user, h, domain_name=None, connection=net_1):
-        """
-        Given the hex digest of a message, attempt to find this hash on the blockchain
-
-        Args:
-            user (Dictionary): The user dictionary of the user querying this hash
-            h (String): The hash of a message
-            domain_name (String or None, optional): The domain name to search for the hash in
-                If None then use the users domain instead
-                Defaults to None
-            connection (IrohaGrpc, optional): The connection to send this hash over. Defaults to net_1.
-
-        Return:
-            IrohaStatus: The status of this query. True if the hash exists on the blockchain, False otherwise.
-        """
-        
-        if domain_name is None:
-            domain_name = user["domain"]
-
-        query = user["iroha"].query("GetAssetInfo", asset_id=f"{h}#{domain_name}")
-        query = IrohaCrypto.sign_query(query, user["private_key"])
-        logging.debug(query)
-        response = connection.send_query(query)
-        logging.debug(response)
-        #Check if response has an asset id matching the hash we are after
-        return response.asset_response.asset.asset_id==h+f"#{user['domain']}"
-
-    @trace
-    def get_domain_hashes(self, user, domain_name=None, connection=net_1):
-        """
-        Find all occurrences of domain being added to over the entire blockchain
-        Return this information as a list, from earliest to latest
-
-        Note this operation can be   S L O W   for large chains
-
-        Args:
-            user (Dictionary): The user dictionary of the user querying this domain
-            domain_name (String or None, optional): The domain name to search for the hash in
-                If None then use the users domain instead
-                Defaults to None
-            connection (IrohaGrpc, optional): The connection to send this hash over. Defaults to net_1.
-
-        Returns:
-            List: A list of all occurrences of assets being added to this domain over the entire chain
-                The elements of this list are dictionaries of:
-                    height: The height that asset was added
-                    hash: The name of that asset (remembering names are hashes)
-                    domain: The domain of the asset, for completeness
-                    creator_id: The creator of that asset
-                    time: The time of creation (may be more useful than height in some cases)
-        """
-
-        if domain_name is None:
-            domain_name = user["domain"]
-
-        current_height=1
-        current_block = None
-        asset_list = []
-
-        # Loop over every block in the chain, from the first
-        while (current_block := get_block(current_height, connection)).error_response.error_code == 0:
-            logging.debug(f"Got block at height {current_height}")
-            # For each transaction in the block
-            for tx in current_block.block_response.block.block_v1.payload.transactions:
-                # Get the creator and the time
-                current_creator_id = tx.payload.reduced_payload.creator_account_id
-                current_created_time = tx.payload.reduced_payload.created_time
-                # For each command in the transaction
-                for command in tx.payload.reduced_payload.commands:
-                    # If the command is to create asset in the target domain, store this
-                    if command.create_asset.domain_id == domain_name:
-                        current_asset = {
-                            "height": current_height,
-                            "hash": command.create_asset.asset_name,
-                            "domain": command.create_asset.domain_id,
-                            "creator_id": current_creator_id,
-                            "time": current_created_time
-                        }
-                        logging.debug("Found matching asset")
-                        logging.debug(f"{current_asset=}")
-                        asset_list.append(current_asset)
-            current_height+=1
-        return asset_list
+import IrohaHashCustodian
