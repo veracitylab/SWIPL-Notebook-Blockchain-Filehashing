@@ -8,17 +8,21 @@ import pickle
 from IrohaUtils import *
 from pathlib import Path
 import re
+import redis
 
 import sys
 from io import StringIO
 import contextlib
 
 
+db = redis.Redis(host="redis", port=6379)
+
 BLOCKCHAIN = 0
+REDIS = 0
 TIMESTAMPING = 1
 LOGGING_LEVEL = 20 #INFO level is 20
 logging.basicConfig(level=LOGGING_LEVEL)
-logging.info(f"\n{BLOCKCHAIN=}\n{TIMESTAMPING=}\n{LOGGING_LEVEL=}")
+logging.info(f"\n{BLOCKCHAIN=}\n{REDIS=}\n{TIMESTAMPING=}\n{LOGGING_LEVEL=}")
 DEFAULT_LIMIT = 10
 user=None
 custodian = IrohaHashCustodian.Custodian(blockstore_threading=False)
@@ -69,6 +73,7 @@ def stdoutIO(stdout=None):
 
 def run(code):
     global BLOCKCHAIN
+    global REDIS
     global TIMESTAMPING
     global LOGGING_LEVEL
     global magic_python_local_vars
@@ -77,6 +82,10 @@ def run(code):
     output = []
     ok = True
 
+    prolog = Prolog()
+    cell_files_dir = Path(Path.cwd(), "consulted_cells")    # The path to the directory for consulted cells
+    cell_files_dir.mkdir(mode=755, exist_ok=True)   # If the consulted cells directory doesn't exist, make it
+    cell_file_name = "cell.pl"  # The default consultation cell name, used if no %file is used
 
     first_line = code.split("\n")[0].strip().upper()
     logging.debug(first_line)
@@ -92,6 +101,9 @@ def run(code):
                 if line.startswith("BLOCKCHAIN="):
                     BLOCKCHAIN=int(line_end)
                     output.append(f"SET ENV {BLOCKCHAIN=}")
+                if line.startswith("REDIS="):
+                    REDIS=int(line_end)
+                    output.append(f"SET ENV {REDIS=}")
                 if line.startswith("TIMESTAMPING="):
                     TIMESTAMPING=int(line_end)
                     output.append(f"SET ENV {TIMESTAMPING=}")
@@ -121,13 +133,9 @@ def run(code):
         return output, True
 
     # Do prolog instead
-    prolog = Prolog()
     tmp = ""    # Temporary string to house working
     clauses = []    # A list of clauses from this cell, ignoring queries and comments
     isQuery = False # Boolean to check if a line is a query
-    cell_files_dir = Path(Path.cwd(), "consulted_cells")    # The path to the directory for consulted cells
-    cell_files_dir.mkdir(mode=755, exist_ok=True)   # If the consulted cells directory doesn't exist, make it
-    cell_file_name = "cell.pl"  # The default consultation cell name, used if no %file is used
     for line in code.split("\n"):   
         line = line.strip()
         match = re.fullmatch(r"%\s*[Ff]ile:\s*(\w+.*)", line) # Check if line is like %file to magic consultation file
