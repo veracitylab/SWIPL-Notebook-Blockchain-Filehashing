@@ -31,6 +31,7 @@ with open("/notebooks/iroha_connection/user_data.pkl", "rb") as user_data:
 logging.debug(user)
 
 magic_python_local_vars = {}
+magic_python_global_vars = {}
 
 def format_value(value):
     output = ""
@@ -77,6 +78,7 @@ def run(code):
     global TIMESTAMPING
     global LOGGING_LEVEL
     global magic_python_local_vars
+    global magic_python_global_vars
 
     logging.debug(f"\n{code=}")
     output = []
@@ -173,7 +175,7 @@ def run(code):
         # Handle errors being thrown out the wazoo
             try:
                 # Execute this line with the local dictionary context
-                exec(code, None, magic_python_local_vars)
+                exec(code, magic_python_global_vars, magic_python_local_vars)
             except Exception as e:
                 output.append(f"ERROR: '{e}'")
         line_out = s.getvalue().strip()
