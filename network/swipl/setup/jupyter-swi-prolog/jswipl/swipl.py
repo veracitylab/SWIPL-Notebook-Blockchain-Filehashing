@@ -123,7 +123,7 @@ def run(code):
     # If a hash is not available, report this as an error
     if first_line==r"%CONSULT":
         if not REDIS:
-            return[f"Cannot consult with REDIS being set! Current {REDIS=}", False]
+            return f"Cannot consult with REDIS being set! Current {REDIS=}", False
         for line in code.split("\n"):
             # Ignore any comments or blank lines
             if line == "" or line[0] == "%": continue
