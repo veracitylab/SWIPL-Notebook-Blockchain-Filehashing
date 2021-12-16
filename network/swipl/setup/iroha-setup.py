@@ -12,7 +12,7 @@ logging.basicConfig(level=LOGGING_LEVEL)
 logging.info("Starting SWIPL setup")
 if BLOCKCHAIN_LOGGING:
     logging.info("Starting Iroha setup")
-    sleep(10)
+    sleep(7)
     iroha_setup = False
     while not iroha_setup:
         try:
