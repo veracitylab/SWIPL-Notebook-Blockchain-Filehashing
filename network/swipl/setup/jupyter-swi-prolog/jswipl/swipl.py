@@ -116,6 +116,55 @@ def run(code):
                 return ["ERROR: Environment variable must be set to an integer", f"{line_end} is not an integer"], False
         return output, True
     
+    # Consult a hash and execute all stored prolog files
+    # Looks through the redis database for all hashes
+    # If a hash is not available, report this as an error
+    if first_line==r"%CONSULT":
+        if not REDIS:
+            return[f"Cannot consult with REDIS being set! Current {REDIS=}", False]
+        for line in code.split("\n"):
+            # Ignore any comments or blank lines
+            if line == "" or line[0] == "%": continue
+            # Find the hash and domain name in the redis database
+            result = db.get(line)
+            # If the specified hash does not exist, the returned value is None
+            if result is None: output.append(f"{line} not found in Redis!")
+            result = result.decode()
+            logging.debug(f"{line}: {result}")
+
+            # Find the file name we should save this prolog as
+            try:
+                sections = line.split("@")
+                # Ensure that we have two parts, one before and one after the @
+                if len(sections) != 2: 
+                    logging.debug("Consulted hash has wrong sections on @ split")
+                    raise TypeError
+                domain_data = sections[1].split("-")
+                # Ensure we have exactly three sections in the domain data
+                # Username, file name, hashing suffix
+                if len(domain_data) != 3: 
+                    logging.debug("Consulted hash has wrong sections on - split")
+                    raise TypeError
+                cell_file_name = domain_data[1]+".pl"
+            except TypeError:
+                logging.debug(f"ERROR: {line} not of correct format to consult")
+                output.append(f"ERROR: {line} not of correct format of <hash>@<username>-<filename>-hash")
+                continue
+            
+            # With file name in hand we can save prolog and consult file
+            path = Path(cell_files_dir, cell_file_name)
+            try:
+                f = open(path, "w+")
+                logging.info(f"Write consulted file {cell_file_name}")
+                f.write(result)    
+                output.append(f"{line}\n{result}\n{'-'*80}")
+            finally:
+                f.close()
+                prolog.consult(f.name)
+            output.append(f"Successfully consulted {cell_file_name}\n{'-'*80}\n")
+        return output, True
+
+
     # If first line specifies magic python do that instead
     if first_line==r"%PYTHON":
         # Execute each line in turn, ignoring the first (%PYTHON)
@@ -210,12 +259,21 @@ def run(code):
             prolog.consult(f.name)
         # If vital to never put hash on twice, check first
         # Iroha does this for us though
+        # Get the file hash
+        file_hash = custodian.get_file_hash(path)
+        file_name = cell_file_name[:cell_file_name.find(".")]
+        domain_name = custodian.parse_domain_name(user["name"]+"-"+ file_name)
+        if REDIS:
+            # Log the hash and domain name into redis
+            key = f"{file_hash}@{domain_name}"
+            val = '\n'.join(clauses)
+            output.append(f"Redis storing {key}")
+            logging.debug(f"Redis storing {key} : {val.encode('unicode_escape')}")
+            db.set(key, val)
+            
         if BLOCKCHAIN:
             if not custodian.find_hash_on_chain(user, custodian.get_file_hash(path)):
-                # Get the file hash
-                file_hash = custodian.get_file_hash(path)
                 # Get the domain name in the form of {user_name}-{file_name}
-                domain_name = custodian._parse_domain_name(user["name"]+"-"+cell_file_name[:cell_file_name.find(".")])
                 logging.info(f"File {cell_file_name} hash {file_hash} logging on blockchain")
                 # Store the hash on chain
                 status = custodian.store_hash_on_chain(user, file_hash, domain_name=domain_name)[0]
