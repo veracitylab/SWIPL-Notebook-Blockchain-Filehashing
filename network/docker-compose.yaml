@@ -187,6 +187,15 @@ services:
         source: blockstore4
         target: /tmp/block_store4
 
+  redis:
+    image: redis:alpine
+    container_name: redis
+    networks:
+      iroha-network:
+        ipv4_address: 172.29.101.101
+    ports:
+      - "6379:6379"
+
   swipl-notebook:
     # image: gamma749/iroha-swipl-notebook
     build: swipl/.

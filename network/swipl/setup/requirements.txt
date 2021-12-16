@@ -1,2 +1,3 @@
 -e jupyter-swi-prolog
 -e IrohaUtils
+redis

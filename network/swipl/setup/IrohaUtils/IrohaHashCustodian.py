@@ -271,7 +271,7 @@ class Custodian():
         obj = str(obj).encode()
         return self.hash_function(obj).hexdigest()
 
-    def _parse_domain_name(self, domain_name):
+    def parse_domain_name(self, domain_name):
         """
         Parse the given domain name to interact with the blockchain
         Currently ensures that None values are converted to the default name
@@ -341,7 +341,7 @@ class Custodian():
             IrohaStatus: The status of the transaction to put this hash to the chain
         """
 
-        domain_name = self._parse_domain_name(domain_name)
+        domain_name = self.parse_domain_name(domain_name)
         
 
         # Try to create the domain, true if domain now exists, false otherwise
@@ -378,7 +378,7 @@ class Custodian():
             IrohaStatus: The status of this query. True if the hash exists on the blockchain, False otherwise.
         """
         
-        domain_name = self._parse_domain_name(domain_name)
+        domain_name = self.parse_domain_name(domain_name)
 
         query = user["iroha"].query("GetAssetInfo", asset_id=f"{h}#{domain_name}")
         query = IrohaCrypto.sign_query(query, user["private_key"])
@@ -410,6 +410,6 @@ class Custodian():
                 None if there is no domain (or no hashes in the domain)
         """
 
-        domain_name = self._parse_domain_name(domain_name)
+        domain_name = self.parse_domain_name(domain_name)
 
         return self.block_storehouse.get_domain_hashes(domain_name)
