@@ -9,7 +9,7 @@ setuptools.setup(
     url="https://github.com/targodan/jupyter-swi-prolog",
     packages=setuptools.find_packages(),
     install_requires=[
-        "pyswip",
+        "pyswip==0.2.9",
         "ipykernel"
     ],
     classifiers=[
